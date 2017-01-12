@@ -1,6 +1,6 @@
 ﻿/* jQuery Data Table Plugin
  * Developed by Selçuk Ermaya
- * Version : v1.0
+ * Version : v1.0.1
  * http://www.selcukermaya.com
  * Fork from Git
  * https://github.com/se/jquery-dtable
@@ -10,33 +10,45 @@
 (function ($) {
 
     $.fn.dtable = function (options) {
-        var table = this.data("dtable");
+        var $this = $(this);
 
-        if (!table) {
-            var events;
+        var $table = $this.data("dtable");
 
+        if ($table) {
+            return $table;
+        }
+
+        var events;
+
+        if (!options) {
             if (typeof options.events != "undefined") {
                 events = options.events;
                 delete options.events;
             }
-
-            table = $.extend(true, $.fn.dtable.defaults, options);
-
-            if (events) {
-                if (events.loaded && $.isFunction(events.loaded)) {
-                    table.events.loaded(events.loaded);
-                }
-            }
-
-            table.element = this;
-            this.data("dtable", table);
-            $.proxy(table.methods.init, table).call();
         }
 
-        return table;
+        $table = $.extend(true, {}, $.fn.dtable.defaults, options);
+
+        if (events) {
+            if (events.loaded && $.isFunction(events.loaded)) {
+                $table.events.loaded(events.loaded);
+            }
+        }
+
+        $table.element = $this;
+
+        $this.data("dtable", $table);
+
+        console.log("1.");
+        console.log($this.data("dtable"));
+
+        $.proxy($this.data("dtable").methods.init, $this.data("dtable")).call();
+
+        return $this.data("dtable");
     };
 
     $.fn.dtable.defaults = {
+        url : null,
         elements: {
             loading: "#data_loading",
             pagination: "#data_pagination",
@@ -63,13 +75,14 @@
         methods: {
             init: function () {
                 var options = this;
+                
 
-                $("[data-field]", options.elements.filter).on("change", $.proxy(options.methods.load, options));
+                $(options.elements.filter, options.element).find("[data-field]").on("change", $.proxy(options.methods.load, options));
 
                 var th = '<a href="#" class="btn btn-xs btn-green-alt" id="data_btn_filter"><i class="fa fa-filter"></i></a><a id="data_loading" href="#" class="btn btn-default btn-xs disabled text-success"><i class="fa fa-spin fa-refresh fa-spin-5x"></i></a>';
                 $("thead th:first", options.element).append(th).addClass("text-left");
 
-                $(options.elements.filtershowhide).on("click", function (event) {
+                $(options.elements.filtershowhide, options.element).on("click", function (event) {
                     event.preventDefault();
                     $(options.element).find('[data-js="filter"]').toggleClass("hidden");
                 });
@@ -82,10 +95,9 @@
                         a.on("click", function (headclick) {
                             headclick.preventDefault();
                             var head = $(this).parent();
-                            var field = head.data("field");
                             var asc = head.data("asc");
 
-                            $('[data-sort="true"]').each(function () {
+                            $('[data-sort="true"]', options.element).each(function () {
                                 $(this).removeData("asc");
                                 $(this).find("i").remove();
                             });
@@ -197,7 +209,7 @@
 
                 var model = { CurrentPage: options.currentpage, Sorts: options.sorts, Filters: options.filters };
 
-                $(options.elements.loading).removeClass("hidden");
+                $(options.elements.loading, options.element).removeClass("hidden");
                 $.ajax({
                     type: "POST",
                     contentType: "application/json;",
@@ -205,8 +217,11 @@
                     data: JSON.stringify(model),
                     dataType: "json",
                     cache: false,
+                    context: options,
                     error: function (status) {
-                        // alert("Data load error.");
+                        if (console) {
+                            console.log(status);
+                        }
                     },
                     success: function (result) {
                         options.data = result.Value;
@@ -214,17 +229,24 @@
                         if (result.IsSuccess) {
                             $("tbody", options.element).empty();
                             if (result.Value.Data) {
-                                var html = $($(options.templates.row).render(result.Value.Data)).wrap("tbody");
+                                var rendered = $(options.templates.row).render(result.Value.Data);
+                                var html = $(rendered).wrap("tbody");
                                 options.element.append(html);
                             }
 
-                            $(options.elements.status).remove();
-                            var footer = $(options.templates.status).render(result.Value);
-                            options.element.parent().append(footer);
+                            if (!options.element.find("tfoot").size()) {
+                                options.element.append("<tfoot/>");
+                            }
+
+                            options.element.find("tfoot tr[data-row-type='status']").remove();
+                            var colSize = options.element.find("thead th").length;
+                            options.element.find("tfoot").append("<tr data-row-type='status'><td colspan='" + colSize + "'></td></tr>");
+                            options.element.find("tfoot tr[data-row-type='status'] td").html($(options.templates.status).render(result.Value));
 
                             options.element.data("loaded", true);
 
-                            $("li[data-page]", options.elements.pagination).addClass("hidden");
+                            var paginationSelector = $(options.elements.pagination, options.element);
+                            paginationSelector.find("li[data-page]").addClass("hidden");
 
                             var dd = (options.visiblepage - 1) / 2;
                             var minIndex = options.currentpage - dd;
@@ -243,21 +265,21 @@
                                 minIndex = 0;
                             }
 
-                            $("li[data-page]", options.elements.pagination).each(function (index) {
+                            paginationSelector.find("li[data-page]").each(function (index) {
                                 if (index >= minIndex && index < maxIndex) {
                                     $(this).removeClass("hidden");
                                 }
                             });
 
-                            $("#data_first_page").off("click").on("click", function (e) {
+                            paginationSelector.find("#data_first_page").off("click").on("click", function (e) {
                                 e.preventDefault();
-                                $("li[data-page]:first", options.elements.pagination).find("a").trigger("click");
+                                paginationSelector.find("li[data-page]:first a").trigger("click");
                             });
-                            $("#data_last_page").off("click").on("click", function (e) {
+                            paginationSelector.find("#data_last_page").off("click").on("click", function (e) {
                                 e.preventDefault();
-                                $("li[data-page]:last", options.elements.pagination).find("a").trigger("click");
+                                paginationSelector.find("li[data-page]:last a").trigger("click");
                             });
-                            $("li[data-page] a", options.elements.pagination).off("click").on("click", function (e) {
+                            paginationSelector.find("li[data-page] a").off("click").on("click", function (e) {
                                 e.preventDefault();
                                 var parent = $(this).parent();
                                 if (!parent.hasClass("active")) {
@@ -272,11 +294,12 @@
                         }
                     },
                     complete: function () {
-                        $(options.elements.loading).addClass("hidden");
+                        var settings = this;
+                        $(settings.elements.loading, settings.element).addClass("hidden");
 
-                        $(options.events._loaded).each(function () {
+                        $(settings.events._loaded).each(function () {
                             if ($.isFunction(this)) {
-                                $.proxy(this, options.element).call();
+                                $.proxy(this, settings.element).call();
                             }
                         });
                     }
@@ -284,5 +307,4 @@
             }
         }
     };
-
 }(jQuery));
