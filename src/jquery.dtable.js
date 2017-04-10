@@ -20,7 +20,7 @@
 
         var events;
 
-        if (!options) {
+        if (options) {
             if (typeof options.events != "undefined") {
                 events = options.events;
                 delete options.events;
