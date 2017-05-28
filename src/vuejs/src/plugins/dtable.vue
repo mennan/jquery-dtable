@@ -1,5 +1,5 @@
 ﻿<template>
-  <table class="table table-hover table-striped table-condensed" id="users_table">
+  <table :class="tableClass" :id="tableId">
     <thead class="th-style">
       <tr>
         <th v-for="headerRow in headerRows" :class="headerRow.class" :data-sort="headerRow.sort" :data-field="headerRow.field" :data-filter-type="headerRow.filterType" :data-filter-data="headerRow.filterData">{{ headerRow.text }}</th>
